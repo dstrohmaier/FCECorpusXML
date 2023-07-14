@@ -1,15 +1,14 @@
-
-from xml.dom import minidom
 import utils
 import os
+import csv
 import urllib.request
 import zipfile
 import tarfile
-from collections import defaultdict
 import shutil
-import glob
 
-__author__ = "Gwena Cunha"
+from xml.dom import minidom
+
+__author__ = "Gwena Cunha, David Strohmaier"
 
 """
 - Downloads dataset
@@ -19,22 +18,22 @@ __author__ = "Gwena Cunha"
 
 
 class FCECorpusHandler:
-    def __init__(self, args, in_file_ext='xml', out_file_ext='txt'):
+    def __init__(self, args):
         self.args = args
-        self.in_file_ext = in_file_ext
-        self.out_file_ext = out_file_ext
+
+        self.selected_langs = args.selected_langs
 
         self.results_dir = args.results_dir
         utils.ensure_dir(self.results_dir)
 
         self.fce_xml_dir = self.args.fce_xml_dir
-        print("Create data directory: {}".format(self.fce_xml_dir))
-        utils.ensure_dir(self.fce_xml_dir)
+        print(f"Create data directory: {self.fce_xml_dir}")
+        self.fce_xml_dir.mkdir(parents=True, exist_ok=True)
 
-        self.fce_error_detection_dir = self.args.fce_xml_dir + 'fce-error-detection'
+        self.fce_error_detection_dir = self.args.fce_xml_dir / 'fce-error-detection'
         self.download_fce_error_detection_corpus()
 
-        self.fce_dir = self.args.fce_xml_dir + 'fce-released-dataset'
+        self.fce_dir = self.args.fce_xml_dir / 'fce-released-dataset'
         self.download_fce_corpus()
 
     def download_fce_error_detection_corpus(self):
@@ -45,7 +44,7 @@ class FCECorpusHandler:
         download_link = 'https://s3-eu-west-1.amazonaws.com/ilexir-website-media/fce-error-detection.tar.gz'
         if not os.path.exists(self.fce_error_detection_dir):
             print("Downloading FCE Error Detection Corpus")
-            targz_fce_filename = self.fce_error_detection_dir + '.tar.gz'
+            targz_fce_filename = self.fce_error_detection_dir.stem + '.tar.gz'
             # Download file
             urllib.request.urlretrieve(download_link, targz_fce_filename)
 
@@ -67,7 +66,7 @@ class FCECorpusHandler:
         download_link = 'https://s3-eu-west-1.amazonaws.com/ilexir-website-media/fce-released-dataset.zip'
         if not os.path.exists(self.fce_dir):
             print("Downloading FCE Corpus")
-            zip_fce_filename = self.fce_dir + '.zip'
+            zip_fce_filename = self.fce_dir.stem + '.zip'
             # Download file
             urllib.request.urlretrieve(download_link, zip_fce_filename)
 
@@ -85,64 +84,70 @@ class FCECorpusHandler:
         print("\nGet train-dev-test sets")
 
         # Copy all files from "fce-released-dataset/dataset/*" to "fce-released-dataset/dataset_all/"
-        fce_dir_dataset = self.fce_dir + '/dataset/'
-        fce_dir_save = self.fce_dir + '/dataset_all/'
-        utils.ensure_dir(fce_dir_save)
+        fce_dir_dataset = self.fce_dir / 'dataset'
+        fce_dir_save = self.fce_dir / 'dataset_all'
+        fce_dir_save.mkdir(parents=True, exist_ok=True)
 
-        subdirs = os.listdir(fce_dir_dataset)
-        for s in subdirs:
-            for txt_file in glob.glob(fce_dir_dataset + s + "/*.xml"):
-                shutil.copy2(txt_file, fce_dir_save)
+        for f_path in fce_dir_dataset.glob('**/*.xml'):
+            shutil.copy2(f_path, fce_dir_save)
 
         # Separate train, dev, test
-        train_dev_test_path = self.fce_error_detection_dir + '/filenames/'
-        train_dev_test_files = [f for f in os.listdir(train_dev_test_path) if f.endswith('.txt')]
-        print(train_dev_test_files)
-        for file in train_dev_test_files:
-            set_dir = self.fce_dir + '/' + file.split('.')[1] + '/'
-            utils.ensure_dir(set_dir)
+        train_dev_test_path = self.fce_error_detection_dir / 'filenames'
+        for f_path in train_dev_test_path.glob('*.txt'):
+            set_dir = self.fce_dir / f_path.stem.split('.')[1]
+            set_dir.mkdir(parents=True, exist_ok=True)
 
-            f = open(train_dev_test_path + file, 'r')
-            f_lines = f.read().split('\n')
+            with open(f_path, 'r') as read_file:
+                f_lines = read_file.read().split('\n')
+
             for l in f_lines:
                 if len(l) > 0:
-                    shutil.copy2(fce_dir_save + l, set_dir)
-            f.close()
+                    shutil.copy2(fce_dir_save / l, set_dir)
 
     def xml_to_txt(self, data_type='train', verbose=False):
         print("\nGet train-dev-test sets")
-        fce_dir_dataset = '{}/{}/'.format(self.fce_dir, data_type)
-        train_dev_test_files = [f for f in os.listdir(fce_dir_dataset) if f.endswith('.xml')]
+        fce_dir_dataset = self.fce_dir / data_type
+        fce_txt_dir_dataset = self.results_dir / data_type
+
+        # Save in results_dir, split into sub_dir for original and corrected
+        # Task: generate incorrect sentences from correct ones, thus source is incorrect and target is correct
+        print(f'fce_txt_dir_dataset: {fce_txt_dir_dataset}')
+        print(f'fce_dir_dataset: {fce_dir_dataset}')
+
+        writers = {}
+        files = []
+        for lang in self.selected_langs:
+            tsv_file = open(f'{lang}_{data_type}_l1.tsv', 'w', encoding='utf-8')
+            files.append(tsv_file)
+            field_names = ['Text', 'Essay']
+            writer = csv.DictWriter(tsv_file, fieldnames=field_names, delimiter='\t')
+            writer.writeheader()
+            writers[lang] = writer
 
         # Convert from xml to txt
-        incorrect_sentences = []
-        correct_sentences = []
-        for f in train_dev_test_files:
-            if verbose:
-                print()
-                print(f)
-            mydoc = minidom.parse(fce_dir_dataset + f)
+        for f_path in fce_dir_dataset.glob('*.xml'):
+
+            mydoc = minidom.parse(str(f_path))
+
+            lang = mydoc.getElementsByTagName('language').item(0).firstChild.nodeValue
+            lang = lang.lower()  # use lower case for languages
+
+            print(lang)
+            if lang not in self.selected_langs:
+                continue
+
             items_essay = mydoc.getElementsByTagName('p')
             for item_essay in items_essay:
-                incorrect_sent, correct_sent = self.strip_str(item_essay, verbose=verbose)
-                incorrect_sentences.append(incorrect_sent)
-                correct_sentences.append(correct_sent)
+                incorrect_sent, _ = self.strip_str(item_essay, verbose=verbose)
 
-        # Save in results_dir
-        # Task: generate incorrect sentences from correct ones, thus source is incorrect and target is correct
-        fce_txt_dir_dataset = '{}{}/'.format(self.results_dir, data_type)
-        utils.ensure_dir(fce_txt_dir_dataset)
-        print(fce_txt_dir_dataset)
+                writers[lang].writerow({
+                    'Text': incorrect_sent,
+                    'Essay': f_path.stem
+                })
 
-        file_source_txt = open(fce_txt_dir_dataset + "source.txt", 'w')
-        # file_source_txt.write('\n'.join(sent for sent in incorrect_sentences))
-        file_source_txt.write('\n'.join(correct_sentences))
-        file_target_txt = open(fce_txt_dir_dataset + "target.txt", 'w')
-        file_target_txt.write('\n'.join(incorrect_sentences))
-        file_source_txt.close()
-        file_target_txt.close()
-
-        print("Finished writing {} files".format(data_type))
+        for f in files:
+            f.close()
+        print(f"Finished writing {data_type} files")
 
     def strip_str(self, item_essay, verbose=False):
         incorrect_sent = ''
@@ -193,9 +198,7 @@ class FCECorpusHandler:
                 correct_sent += cor_sent
         return incorrect_sent, correct_sent
 
-    def save_file(self, text, dir, filename):
-        utils.ensure_dir(dir)
-        file = open(dir + filename, 'w')
-        file.write(text)
-        file.close()
-
+    def save_file(self, text, out_dir, filename):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with open(out_dir / filename, 'w') as out_file:
+            out_file.write(text)

@@ -1,3 +1,9 @@
+This is a forked and modified version of the original code provided by Gwenaelle Cunha Sergio. I changed the code to provide per file output, and to filter by selected languages. I also made aesthetic changes.
+
+The following describes the original code, removing reference to the vocab functionality, since it has been removed.
+
+
+
 [![DOI](https://zenodo.org/badge/199615833.svg)](https://zenodo.org/badge/latestdoi/199615833)
 
 ## About
@@ -5,7 +11,7 @@
 * Extracts original and corrected essays from [FCE Corpus](https://www.ilexir.co.uk/datasets/index.html)
 
 #### Contents
-[Requirements](#requirements) • [FCE Corpus](#fce-corpus) • [How to Make](#how-to-make) • [How to Cite](#acknowledgement) 
+[Requirements](#requirements) • [FCE Corpus](#fce-corpus) • [How to Make](#how-to-make) • [How to Cite](#acknowledgement)
 
 ## Requirements
 * Tested on MacOS Mojave (10.14), Python 3.7.1
@@ -25,16 +31,7 @@ python main_xml_to_txt.py --fce_xml_dir data/ --results_dir data/fce_txt/
   + `fce_xml_dir`: directory where the FCE `.xml` Corpus will be downloaded
   + `results_dir`: directory where the `.txt` data will be saved
 
-### 2. Vocab
-Run [script](https://github.com/google/seq2seq/blob/master/bin/tools/generate_vocab.py):
-```
-python generate_vocab.py --max_vocab_size 20000 --downcase True --infile data/fce_txt/test/source.txt --outfile data/fce_txt/test/vocab.txt
-python generate_vocab.py --max_vocab_size 20000 --downcase True --infile data/fce_txt/train/source.txt --outfile data/fce_txt/train/vocab.txt
-python generate_vocab.py --max_vocab_size 20000 --downcase True --infile data/fce_txt/dev/source.txt --outfile data/fce_txt/dev/vocab.txt
-```
-> Script has also been added to this repository for future use
 
-> Number of words: 4,495 (test), 17,770 (train), 4,119 (dev)
 
 ## Acknowledgement
 * Please star or fork if this code was useful for you. If you use it in a paper, please cite as:
@@ -65,9 +62,9 @@ python generate_vocab.py --max_vocab_size 20000 --downcase True --infile data/fc
         6. The Licensee may publish excerpts of less than 100 words from the licensed dataset pursuant to clause 3.
         7. The Licensor grants the Licensee this right to use the licensed dataset ‘as is’. Licensor does not make, and expressly disclaims, any express or implied warranties, representations or endorsements of any kind whatsoever.
         8. This Agreement shall be governed by and construed in accordance with the laws of England and the English courts shall have exclusive jurisdiction.
-    ``` 
+    ```
 
-  * Please refer to the following citation if you use the FCE Corpus:  
+  * Please refer to the following citation if you use the FCE Corpus:
     ```
     @inproceedings{yannakoudakis2011new,
       title={A new dataset and method for automatically grading ESOL texts},
